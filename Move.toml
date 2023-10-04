@@ -4,7 +4,7 @@ version = "1.0.0"
 authors = ["Koeding"]
 
 [addresses]
-character = '0x1234567'
+character = '5400b0f6e902283ac28129f40bc76a417dad8356cc81214f7074e2e91c8262e5'
 
 [dev-addresses]
 

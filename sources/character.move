@@ -24,7 +24,7 @@ module character::character {
     #[test_only]
     use std::debug;
 
-    
+
     //==============================================================================================
     // Errors 
     //==============================================================================================
@@ -1037,50 +1037,50 @@ module character::character {
 
     #[view]
     /// Returns the trinket token address by name
-    public fun weapon_token_address(creator: address, weapon_token_name: String): address {
-        token::create_token_address(&creator, &string::utf8(OVERMIND_PLAYERS_WEAPON_COLLECTION), &weapon_token_name)
+    public fun weapon_token_address(weapon_token_name: String): address {
+        token::create_token_address(&@character, &string::utf8(OVERMIND_PLAYERS_WEAPON_COLLECTION), &weapon_token_name)
     }
 
     #[view]
     /// Returns the dagger token address
-    public fun dagger_token_address(creator: address): address {
-        weapon_token_address(creator, string::utf8(DAGGER_TOKEN_NAME))
+    public fun dagger_token_address(): address {
+        weapon_token_address(string::utf8(DAGGER_TOKEN_NAME))
     }
     
     #[view]
     /// Returns the broadsword token address
-    public fun broadsword_token_address(creator: address): address {
-        weapon_token_address(creator, string::utf8(BROADSWORD_TOKEN_NAME))
+    public fun broadsword_token_address(): address {
+        weapon_token_address(string::utf8(BROADSWORD_TOKEN_NAME))
     }
 
     #[view]
     /// Returns the staff token address
-    public fun staff_token_address(creator: address): address {
-        weapon_token_address(creator, string::utf8(STAFF_TOKEN_NAME))
+    public fun staff_token_address(): address {
+        weapon_token_address(string::utf8(STAFF_TOKEN_NAME))
     }
 
     #[view]
     /// Returns the wizards' staff token address
-    public fun wizards_staff_token_address(creator: address): address {
-        weapon_token_address(creator, string::utf8(WIZARDS_STAFF_TOKEN_NAME))
+    public fun wizards_staff_token_address(): address {
+        weapon_token_address(string::utf8(WIZARDS_STAFF_TOKEN_NAME))
     }
     #[view]
 
     /// Returns the greatsword token address
-    public fun greatsword_token_address(creator: address): address {
-        weapon_token_address(creator, string::utf8(GREATSWORD_TOKEN_NAME))
+    public fun greatsword_token_address(): address {
+        weapon_token_address(string::utf8(GREATSWORD_TOKEN_NAME))
     }
 
     #[view]
     /// Returns the pistol token address
-    public fun pistol_token_address(creator: address): address {
-        weapon_token_address(creator, string::utf8(PISTOL_TOKEN_NAME))
+    public fun pistol_token_address(): address {
+        weapon_token_address(string::utf8(PISTOL_TOKEN_NAME))
     }
 
     #[view]
     /// Returns the laser pistol token address
-    public fun laser_pistol_token_address(creator: address): address {
-        weapon_token_address(creator, string::utf8(LASER_PISTOL_TOKEN_NAME))
+    public fun laser_pistol_token_address(): address {
+        weapon_token_address(string::utf8(LASER_PISTOL_TOKEN_NAME))
     }
     
     #[view]
@@ -1092,48 +1092,48 @@ module character::character {
 
     #[view]
     /// Returns the trinket token address by name
-    public fun trinket_token_address(creator: address, trinket_token_name: String): address {
-        token::create_token_address(&creator, &string::utf8(OVERMIND_PLAYERS_TRINKET_COLLECTION), &trinket_token_name)
+    public fun trinket_token_address(trinket_token_name: String): address {
+        token::create_token_address(&@character, &string::utf8(OVERMIND_PLAYERS_TRINKET_COLLECTION), &trinket_token_name)
     }
 
     #[view]
     /// Returns the chain token address
-    public fun chain_token_address(creator: address): address {
-        trinket_token_address(creator, string::utf8(CHAIN_TOKEN_NAME))
+    public fun chain_token_address(): address {
+        trinket_token_address(string::utf8(CHAIN_TOKEN_NAME))
     }
     
     #[view]
     /// Returns the pendant token address
-    public fun pendant_token_address(creator: address): address {
-        trinket_token_address(creator, string::utf8(PENDANT_TOKEN_NAME))
+    public fun pendant_token_address(): address {
+        trinket_token_address(string::utf8(PENDANT_TOKEN_NAME))
     }
     #[view]
     /// Returns the baseball cap token address
-    public fun baseball_cap_token_address(creator: address): address {
-        trinket_token_address(creator, string::utf8(BASEBALL_CAP_TOKEN_NAME))
+    public fun baseball_cap_token_address(): address {
+        trinket_token_address(string::utf8(BASEBALL_CAP_TOKEN_NAME))
     }
 
     #[view]
     /// Returns the wizards' hat token address
-    public fun wizards_hat_token_address(creator: address): address {
-        trinket_token_address(creator, string::utf8(WIZARDS_HAT_TOKEN_NAME))
+    public fun wizards_hat_token_address(): address {
+        trinket_token_address(string::utf8(WIZARDS_HAT_TOKEN_NAME))
     }
     #[view]
     /// Returns the helmet token address
-    public fun helmet_token_address(creator: address): address {
-        trinket_token_address(creator, string::utf8(HELMET_TOKEN_NAME))
+    public fun helmet_token_address(): address {
+        trinket_token_address(string::utf8(HELMET_TOKEN_NAME))
     }
 
     #[view]
     /// Returns the crown token address
-    public fun crown_token_address(creator: address): address {
-        trinket_token_address(creator, string::utf8(CROWN_TOKEN_NAME))
+    public fun crown_token_address(): address {
+        trinket_token_address(string::utf8(CROWN_TOKEN_NAME))
     }
 
     #[view]
     /// Returns the halo token address
-    public fun halo_token_address(creator: address): address {
-        trinket_token_address(creator, string::utf8(HALO_TOKEN_NAME))
+    public fun halo_token_address(): address {
+        trinket_token_address(string::utf8(HALO_TOKEN_NAME))
     }
 
     #[view]
@@ -1145,48 +1145,48 @@ module character::character {
 
     #[view]
     /// Returns the armour token address by name
-    public fun armour_token_address(creator: address, weapon_token_name: String): address {
-        token::create_token_address(&creator, &string::utf8(OVERMIND_PLAYERS_ARMOUR_COLLECTION), &weapon_token_name)
+    public fun armour_token_address(weapon_token_name: String): address {
+        token::create_token_address(&@character, &string::utf8(OVERMIND_PLAYERS_ARMOUR_COLLECTION), &weapon_token_name)
     }
 
     #[view]
     /// Returns the shirt token address
-    public fun shirt_token_address(creator: address): address {
-        armour_token_address(creator, string::utf8(SHIRT_TOKEN_NAME))
+    public fun shirt_token_address(): address {
+        armour_token_address(string::utf8(SHIRT_TOKEN_NAME))
     }
-    
+
     #[view]
     /// Returns the cloak token address
-    public fun cloak_token_address(creator: address): address {
-        armour_token_address(creator, string::utf8(CLOAK_TOKEN_NAME))
+    public fun cloak_token_address(): address {
+        armour_token_address(string::utf8(CLOAK_TOKEN_NAME))
     }
     #[view]
     /// Returns the wizards' cloak token address
-    public fun wizards_cloak_token_address(creator: address): address {
-        armour_token_address(creator, string::utf8(WIZARDS_CLOAK_TOKEN_NAME))
+    public fun wizards_cloak_token_address(): address {
+        armour_token_address(string::utf8(WIZARDS_CLOAK_TOKEN_NAME))
     }
 
     #[view]
     /// Returns the chainmail token address
-    public fun chainmail_token_address(creator: address): address {
-        armour_token_address(creator, string::utf8(CHAINMAIL_TOKEN_NAME))
+    public fun chainmail_token_address(): address {
+        armour_token_address(string::utf8(CHAINMAIL_TOKEN_NAME))
     }
     #[view]
     /// Returns the knights' armour token address
-    public fun knights_armour_token_address(creator: address): address {
-        armour_token_address(creator, string::utf8(KNIGHTS_ARMOUR_TOKEN_NAME))
+    public fun knights_armour_token_address(): address {
+        armour_token_address(string::utf8(KNIGHTS_ARMOUR_TOKEN_NAME))
     }
 
     #[view]
     /// Returns the shirt token address
-    public fun tuxedo_token_address(creator: address): address {
-        armour_token_address(creator, string::utf8(TUXEDO_TOKEN_NAME))
+    public fun tuxedo_token_address(): address {
+        armour_token_address(string::utf8(TUXEDO_TOKEN_NAME))
     }
 
     #[view]
     /// Returns the shirt token address
-    public fun golden_armour_token_address(creator: address): address {
-        armour_token_address(creator, string::utf8(GOLDEN_AMOUR_TOKEN_NAME))
+    public fun golden_armour_token_address(): address {
+        armour_token_address(string::utf8(GOLDEN_AMOUR_TOKEN_NAME))
     }
 
     //==============================================================================================

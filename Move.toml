@@ -4,7 +4,7 @@ version = "1.0.0"
 authors = ["Koeding"]
 
 [addresses]
-character = '5400b0f6e902283ac28129f40bc76a417dad8356cc81214f7074e2e91c8262e5'
+character = '9e5bd20016906412af1fb2569ec2b7134dcaef01eecb2d1bdecf29b762399b54'
 
 [dev-addresses]
 

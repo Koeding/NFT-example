@@ -6,6 +6,7 @@ upon successful quest completion. Tokens are used as in game currency to upgrade
 
 module character::character {
 
+    use std::string_utils::{Self};
     use std::signer;
     use std::vector;
     use std::option::{Self, Option};
@@ -24,7 +25,7 @@ module character::character {
     #[test_only]
     use std::debug;
 
-    
+
     //==============================================================================================
     // Errors 
     //==============================================================================================
@@ -66,11 +67,12 @@ module character::character {
     const OVERMIND_PLAYERS_NFT_DESCRIPTION: vector<u8> = b"An Overmind Adventurer";
     const OVERMIND_PLAYERS_NFT_COLLECTION_URI: vector<u8> = b"https://www.giantfreakinrobot.com/wp-content/uploads/2022/08/rick-astley-1200x675.jpg";
 
-    /// Weapon collection name
+    /// Character token constants
+    const OVERMIND_CHARACTER_BASE_URI: vector<u8> = b"https://www.giantfreakinrobot.com/wp-content/uploads/2022/08/rick-astley-1200x675.jpg";
+
+    /// Weapon collection constants
     const OVERMIND_PLAYERS_WEAPON_COLLECTION: vector<u8> = b"Weapons";
-    /// Weapon collection description
     const OVERMIND_PLAYERS_WEAPON_DESCRIPTION: vector<u8> = b"Character Weapon";
-    /// Weapon collection URI
     const OVERMIND_PLAYERS_WEAPON_COLLECTION_URI: vector<u8> = b"https://www.giantfreakinrobot.com/wp-content/uploads/2022/08/rick-astley-1200x675.jpg";
 
     /// Weapon token names
@@ -83,11 +85,9 @@ module character::character {
     const LASER_PISTOL_TOKEN_NAME: vector<u8> = b"Laser Pistol Token";
 
    
-    /// Trinket collection name
+    /// Trinket collection constants
     const OVERMIND_PLAYERS_TRINKET_COLLECTION: vector<u8> = b"Trinket";
-    /// Trinket collection description
     const OVERMIND_PLAYERS_TRINKET_DESCRIPTION: vector<u8> = b"Character Trinket";
-    /// Trinket collection URI
     const OVERMIND_PLAYERS_TRINKET_COLLECTION_URI: vector<u8> = b"https://www.giantfreakinrobot.com/wp-content/uploads/2022/08/rick-astley-1200x675.jpg";
 
     /// Trinket token names
@@ -99,11 +99,9 @@ module character::character {
     const CROWN_TOKEN_NAME: vector<u8> = b"Crown Token";
     const HALO_TOKEN_NAME: vector<u8> = b"Halo Token";
 
-    /// Armour collection name
+    /// Armour collection constants
     const OVERMIND_PLAYERS_ARMOUR_COLLECTION: vector<u8> = b"Armour";
-    /// aArmour collection description
     const OVERMIND_PLAYERS_ARMOUR_DESCRIPTION: vector<u8> = b"Character Armour";
-    /// armour collection URI
     const OVERMIND_PLAYERS_ARMOUR_COLLECTION_URI: vector<u8> = b"https://www.giantfreakinrobot.com/wp-content/uploads/2022/08/rick-astley-1200x675.jpg";
 
     /// Armour token names
@@ -144,7 +142,6 @@ module character::character {
 
     #[resource_group_member(group = aptos_framework::object::ObjectGroup)]
     struct Character has key {
-        gender: String,
         name: String,
         weapon: Option<Object<WeaponToken>>,
         armour: Option<Object<ArmourToken>>,
@@ -241,7 +238,7 @@ module character::character {
         };
         move_to<State>(&resource_signer, state);
 
-        coin::register<AptosCoin>(& resource_signer);
+        coin::register<AptosCoin>(&resource_signer);
         
         create_character_collection(&resource_signer);
         create_armour(&resource_signer);
@@ -253,19 +250,16 @@ module character::character {
     // Character Minting Functions
     //==============================================================================================
     
-    entry fun mint_character(resource: &signer,
-        player: address,
-        gender: String,
+    entry fun mint_character(player: &signer,
         name: String,
-        description: String,
-        uri: String,
     ) acquires State {
-        assert!(is_moderator(signer::address_of(resource)), ENOT_MODERATOR);
-        let state = borrow_global_mut<State>(signer::address_of(resource));
-
-        assert!(!vector::contains(&state.players, &player), EACCOUNT_ALREADY_HAS_CHARACTER);
+        let resource = account::create_resource_address(&@character, SEED);
+        let state = borrow_global_mut<State>(resource);
+        let resource_signer = account::create_signer_with_capability(&state.resource_signer_capability);
+        let player_address = signer::address_of(player);
+        assert!(!vector::contains(&state.players, &player_address), EACCOUNT_ALREADY_HAS_CHARACTER);
         
-        let token_address = create_character_for_player(resource, player, gender, name, description, uri);
+        let token_address = create_character_for_player(&resource_signer, player_address, name);
 
         event::emit_event(&mut state.character_creation_events, CharacterCreationEvent {
             name: name,
@@ -280,21 +274,18 @@ module character::character {
      * @notice: Called from mint_player
      * @notice: creates a Character nft, limit of one per account.
      */
-   fun create_character_for_player(
+    fun create_character_for_player(
         resource: &signer,
         player: address,
-        gender: String,
         name: String,
-        description: String,
-        uri: String,
     ): address {
         let constructor_ref = token::create_named_token(
             resource,
             string::utf8(OVERMIND_PLAYERS_NFT_COLLECTION),
-            description,
+            string_utils::format1(&b"{}'s Overmind Character", name),
             name,
             option::none(),
-            uri,
+            string::utf8(OVERMIND_CHARACTER_BASE_URI),
         );
         let object_signer = object::generate_signer(&constructor_ref);
 
@@ -309,7 +300,6 @@ module character::character {
         property_map::init(&constructor_ref, properties);
 
         move_to(&object_signer, Character {
-            gender: gender,
             name: name,
             weapon: option::none<Object<WeaponToken>>(),
             armour: option::none<Object<ArmourToken>>(),
@@ -327,19 +317,20 @@ module character::character {
     //==============================================================================================
 
     
-    public entry fun mint_weapon(creator: &signer, receiver: &signer, item_name: String, cost: u64) acquires WeaponToken {
-        let weapon_token = object::address_to_object<WeaponToken>(weapon_token_address(signer::address_of(creator), item_name));
+    public entry fun mint_weapon(receiver: &signer, item_name: String) acquires State, WeaponToken {
+        let resource = account::create_resource_address(&@character, SEED);
+        let state = borrow_global<State>(resource);
+        let resource_signer = account::create_signer_with_capability(&state.resource_signer_capability);
+        let weapon_token = object::address_to_object<WeaponToken>(weapon_token_address(item_name));
+        let cost = property_map::read_u64<WeaponToken>(&weapon_token, &string::utf8(ITEM_COST_PROPERTY_NAME));
+        assert!(cost <= coin::balance<AptosCoin>(signer::address_of(receiver)), ENOT_ENOUGH_FUNDS);
 
-        assert!(property_map::read_u64<WeaponToken>(&weapon_token, &string::utf8(ITEM_COST_PROPERTY_NAME)) <= cost, ENOT_ENOUGH_FUNDS_PROVIDED);
-        assert!(coin::balance<AptosCoin>(signer::address_of(receiver)) >= cost, ENOT_ENOUGH_FUNDS);
-
-        coin::transfer<AptosCoin>(receiver, signer::address_of(creator), cost);
-        mint_weapon_internal(creator, weapon_token, signer::address_of(receiver), 1);
+        coin::transfer<AptosCoin>(receiver, resource, cost);
+        mint_weapon_internal(&resource_signer, weapon_token, signer::address_of(receiver));
     }
 
-    fun mint_weapon_internal(creator: &signer, token: Object<WeaponToken>, receiver: address, cost: u64) acquires WeaponToken {
+    fun mint_weapon_internal(creator: &signer, token: Object<WeaponToken>, receiver: address) acquires WeaponToken {
         let weapon_token = authorized_weapon_borrow<WeaponToken>(creator, &token);
-        assert!(coin::balance<AptosCoin>(receiver) >= cost, ENOT_ENOUGH_FUNDS);
         let fungible_asset_mint_ref = &weapon_token.fungible_asset_mint_ref;
         let weapon_asset = fungible_asset::mint(fungible_asset_mint_ref, 1);
         primary_fungible_store::deposit(receiver, weapon_asset);
@@ -353,19 +344,20 @@ module character::character {
         borrow_global<WeaponToken>(token_address)
     }
    
-    public entry fun mint_armour(creator: &signer, receiver: &signer, item_name: String, cost: u64) acquires ArmourToken {
-        let armour_token = object::address_to_object<ArmourToken>(armour_token_address(signer::address_of(creator), item_name));
+    public entry fun mint_armour(receiver: &signer, item_name: String) acquires State, ArmourToken {
+        let resource = account::create_resource_address(&@character, SEED);
+        let state = borrow_global<State>(resource);
+        let resource_signer = account::create_signer_with_capability(&state.resource_signer_capability);
+        let armour_token = object::address_to_object<ArmourToken>(armour_token_address(item_name));
+        let cost = property_map::read_u64<ArmourToken>(&armour_token, &string::utf8(ITEM_COST_PROPERTY_NAME));
+        assert!(cost <= coin::balance<AptosCoin>(signer::address_of(receiver)), ENOT_ENOUGH_FUNDS);
 
-        assert!(property_map::read_u64<ArmourToken>(&armour_token, &string::utf8(ITEM_COST_PROPERTY_NAME)) <= cost, ENOT_ENOUGH_FUNDS);
-        assert!(coin::balance<AptosCoin>(signer::address_of(receiver)) >= cost, ENOT_ENOUGH_FUNDS);
-
-        coin::transfer<AptosCoin>(receiver, signer::address_of(creator), cost);
-        mint_armour_internal(creator, armour_token, signer::address_of(receiver), 1);
+        coin::transfer<AptosCoin>(receiver, resource, cost);
+        mint_armour_internal(&resource_signer, armour_token, signer::address_of(receiver));
     }
 
-    fun mint_armour_internal(creator: &signer, token: Object<ArmourToken>, receiver: address, cost: u64) acquires ArmourToken {
+    fun mint_armour_internal(creator: &signer, token: Object<ArmourToken>, receiver: address) acquires ArmourToken {
         let armour_token = authorized_armour_borrow<ArmourToken>(creator, &token);
-        assert!(coin::balance<AptosCoin>(receiver) >= cost, ENOT_ENOUGH_FUNDS);
         let fungible_asset_mint_ref = &armour_token.fungible_asset_mint_ref;
         let armour_asset = fungible_asset::mint(fungible_asset_mint_ref, 1);
         primary_fungible_store::deposit(receiver, armour_asset);
@@ -379,19 +371,20 @@ module character::character {
         borrow_global<ArmourToken>(token_address)
     }
 
-    public entry fun mint_trinket(creator: &signer, receiver: &signer, item_name: String, cost: u64) acquires TrinketToken {
-        let trinket_token = object::address_to_object<TrinketToken>(trinket_token_address(signer::address_of(creator), item_name));
+    public entry fun mint_trinket(receiver: &signer, item_name: String) acquires State, TrinketToken {
+        let resource = account::create_resource_address(&@character, SEED);
+        let state = borrow_global<State>(resource);
+        let resource_signer = account::create_signer_with_capability(&state.resource_signer_capability);
+        let trinket_token = object::address_to_object<TrinketToken>(trinket_token_address(item_name));
+        let cost = property_map::read_u64<TrinketToken>(&trinket_token, &string::utf8(ITEM_COST_PROPERTY_NAME));
+        assert!(cost <= coin::balance<AptosCoin>(signer::address_of(receiver)), ENOT_ENOUGH_FUNDS);
 
-        assert!(property_map::read_u64<TrinketToken>(&trinket_token, &string::utf8(ITEM_COST_PROPERTY_NAME)) <= cost, ENOT_ENOUGH_FUNDS);
-        assert!(coin::balance<AptosCoin>(signer::address_of(receiver)) >= cost, ENOT_ENOUGH_FUNDS);
-
-        coin::transfer<AptosCoin>(receiver, signer::address_of(creator), cost);
-        mint_trinket_internal(creator, trinket_token, signer::address_of(receiver), 1);
+        coin::transfer<AptosCoin>(receiver, resource, cost);
+        mint_trinket_internal(&resource_signer, trinket_token, signer::address_of(receiver));
     }
 
-    fun mint_trinket_internal(creator: &signer, token: Object<TrinketToken>, receiver: address, cost: u64) acquires TrinketToken {
+    fun mint_trinket_internal(creator: &signer, token: Object<TrinketToken>, receiver: address) acquires TrinketToken {
         let trinket_token = authorized_trinket_borrow<TrinketToken>(creator, &token);
-        assert!(coin::balance<AptosCoin>(receiver) >= cost, ENOT_ENOUGH_FUNDS);
         let fungible_asset_mint_ref = &trinket_token.fungible_asset_mint_ref;
         let trinket_asset = fungible_asset::mint(fungible_asset_mint_ref, 1);
         primary_fungible_store::deposit(receiver, trinket_asset);
@@ -405,7 +398,7 @@ module character::character {
         borrow_global<TrinketToken>(token_address)
     }
 
-    public fun equip_weapon(owner: &signer, character: Object<Character>, weapon: Object<WeaponToken>) acquires Character {
+    public entry fun equip_weapon(owner: &signer, character: Object<Character>, weapon: Object<WeaponToken>) acquires Character {
         let character_obj = borrow_global_mut<Character>(object::object_address<Character>(&character));
         option::fill(&mut character_obj.weapon, weapon);
         object::transfer_to_object(owner, weapon, character);
@@ -429,7 +422,10 @@ module character::character {
         );
     }
 
-   public fun equip_armour(owner: &signer, character: Object<Character>, armour: Object<ArmourToken>) acquires Character {
+   public entry fun equip_armour(owner: &signer, character_name: String, armour_name: String) acquires Character {
+        let resource = account::create_resource_address(&@character, SEED);  
+        let armour = object::address_to_object(token::create_token_address(&signer::address_of(owner), &string::utf8(OVERMIND_PLAYERS_ARMOUR_COLLECTION), &armour_name));
+        let character = object::address_to_object(token::create_token_address(&signer::address_of(owner), &string::utf8(OVERMIND_PLAYERS_ARMOUR_COLLECTION), &character_name));
         let character_obj = borrow_global_mut<Character>(object::object_address<Character>(&character));
         option::fill(&mut character_obj.armour, armour);
         object::transfer_to_object(owner, armour, character);
@@ -453,7 +449,7 @@ module character::character {
         );
     }
 
-    public fun equip_trinket(owner: &signer, character: Object<Character>, trinket: Object<TrinketToken>) acquires Character {
+    public entry fun equip_trinket(owner: &signer, character: Object<Character>, trinket: Object<TrinketToken>) acquires Character {
         let character_obj = borrow_global_mut<Character>(object::object_address(&character));
         option::fill(&mut character_obj.trinket, trinket);
         object::transfer_to_object(owner, trinket, character);
@@ -551,7 +547,6 @@ module character::character {
             option::none(),
             uri,
         );
-
 
         let object_signer = object::generate_signer(&constructor_ref);
         let property_mutator_ref = property_map::generate_mutator_ref(&constructor_ref);
@@ -1037,50 +1032,51 @@ module character::character {
 
     #[view]
     /// Returns the trinket token address by name
-    public fun weapon_token_address(creator: address, weapon_token_name: String): address {
-        token::create_token_address(&creator, &string::utf8(OVERMIND_PLAYERS_WEAPON_COLLECTION), &weapon_token_name)
+    public fun weapon_token_address(weapon_token_name: String): address {
+        let resource = account::create_resource_address(&@character, SEED);
+        token::create_token_address(&resource, &string::utf8(OVERMIND_PLAYERS_WEAPON_COLLECTION), &weapon_token_name)
     }
 
     #[view]
     /// Returns the dagger token address
-    public fun dagger_token_address(creator: address): address {
-        weapon_token_address(creator, string::utf8(DAGGER_TOKEN_NAME))
+    public fun dagger_token_address(): address {
+        weapon_token_address(string::utf8(DAGGER_TOKEN_NAME))
     }
     
     #[view]
     /// Returns the broadsword token address
-    public fun broadsword_token_address(creator: address): address {
-        weapon_token_address(creator, string::utf8(BROADSWORD_TOKEN_NAME))
+    public fun broadsword_token_address(): address {
+        weapon_token_address(string::utf8(BROADSWORD_TOKEN_NAME))
     }
 
     #[view]
     /// Returns the staff token address
-    public fun staff_token_address(creator: address): address {
-        weapon_token_address(creator, string::utf8(STAFF_TOKEN_NAME))
+    public fun staff_token_address(): address {
+        weapon_token_address(string::utf8(STAFF_TOKEN_NAME))
     }
 
     #[view]
     /// Returns the wizards' staff token address
-    public fun wizards_staff_token_address(creator: address): address {
-        weapon_token_address(creator, string::utf8(WIZARDS_STAFF_TOKEN_NAME))
+    public fun wizards_staff_token_address(): address {
+        weapon_token_address(string::utf8(WIZARDS_STAFF_TOKEN_NAME))
     }
     #[view]
 
     /// Returns the greatsword token address
-    public fun greatsword_token_address(creator: address): address {
-        weapon_token_address(creator, string::utf8(GREATSWORD_TOKEN_NAME))
+    public fun greatsword_token_address(): address {
+        weapon_token_address(string::utf8(GREATSWORD_TOKEN_NAME))
     }
 
     #[view]
     /// Returns the pistol token address
-    public fun pistol_token_address(creator: address): address {
-        weapon_token_address(creator, string::utf8(PISTOL_TOKEN_NAME))
+    public fun pistol_token_address(): address {
+        weapon_token_address(string::utf8(PISTOL_TOKEN_NAME))
     }
 
     #[view]
     /// Returns the laser pistol token address
-    public fun laser_pistol_token_address(creator: address): address {
-        weapon_token_address(creator, string::utf8(LASER_PISTOL_TOKEN_NAME))
+    public fun laser_pistol_token_address(): address {
+        weapon_token_address(string::utf8(LASER_PISTOL_TOKEN_NAME))
     }
     
     #[view]
@@ -1092,48 +1088,49 @@ module character::character {
 
     #[view]
     /// Returns the trinket token address by name
-    public fun trinket_token_address(creator: address, trinket_token_name: String): address {
-        token::create_token_address(&creator, &string::utf8(OVERMIND_PLAYERS_TRINKET_COLLECTION), &trinket_token_name)
+    public fun trinket_token_address(trinket_token_name: String): address {
+        let resource = account::create_resource_address(&@character, SEED);
+        token::create_token_address(&resource, &string::utf8(OVERMIND_PLAYERS_TRINKET_COLLECTION), &trinket_token_name)
     }
 
     #[view]
     /// Returns the chain token address
-    public fun chain_token_address(creator: address): address {
-        trinket_token_address(creator, string::utf8(CHAIN_TOKEN_NAME))
+    public fun chain_token_address(): address {
+        trinket_token_address(string::utf8(CHAIN_TOKEN_NAME))
     }
     
     #[view]
     /// Returns the pendant token address
-    public fun pendant_token_address(creator: address): address {
-        trinket_token_address(creator, string::utf8(PENDANT_TOKEN_NAME))
+    public fun pendant_token_address(): address {
+        trinket_token_address(string::utf8(PENDANT_TOKEN_NAME))
     }
     #[view]
     /// Returns the baseball cap token address
-    public fun baseball_cap_token_address(creator: address): address {
-        trinket_token_address(creator, string::utf8(BASEBALL_CAP_TOKEN_NAME))
+    public fun baseball_cap_token_address(): address {
+        trinket_token_address(string::utf8(BASEBALL_CAP_TOKEN_NAME))
     }
 
     #[view]
     /// Returns the wizards' hat token address
-    public fun wizards_hat_token_address(creator: address): address {
-        trinket_token_address(creator, string::utf8(WIZARDS_HAT_TOKEN_NAME))
+    public fun wizards_hat_token_address(): address {
+        trinket_token_address(string::utf8(WIZARDS_HAT_TOKEN_NAME))
     }
     #[view]
     /// Returns the helmet token address
-    public fun helmet_token_address(creator: address): address {
-        trinket_token_address(creator, string::utf8(HELMET_TOKEN_NAME))
+    public fun helmet_token_address(): address {
+        trinket_token_address(string::utf8(HELMET_TOKEN_NAME))
     }
 
     #[view]
     /// Returns the crown token address
-    public fun crown_token_address(creator: address): address {
-        trinket_token_address(creator, string::utf8(CROWN_TOKEN_NAME))
+    public fun crown_token_address(): address {
+        trinket_token_address(string::utf8(CROWN_TOKEN_NAME))
     }
 
     #[view]
     /// Returns the halo token address
-    public fun halo_token_address(creator: address): address {
-        trinket_token_address(creator, string::utf8(HALO_TOKEN_NAME))
+    public fun halo_token_address(): address {
+        trinket_token_address(string::utf8(HALO_TOKEN_NAME))
     }
 
     #[view]
@@ -1145,48 +1142,49 @@ module character::character {
 
     #[view]
     /// Returns the armour token address by name
-    public fun armour_token_address(creator: address, weapon_token_name: String): address {
-        token::create_token_address(&creator, &string::utf8(OVERMIND_PLAYERS_ARMOUR_COLLECTION), &weapon_token_name)
+    public fun armour_token_address(weapon_token_name: String): address {
+        let resource = account::create_resource_address(&@character, SEED);
+        token::create_token_address(&resource, &string::utf8(OVERMIND_PLAYERS_ARMOUR_COLLECTION), &weapon_token_name)
     }
 
     #[view]
     /// Returns the shirt token address
-    public fun shirt_token_address(creator: address): address {
-        armour_token_address(creator, string::utf8(SHIRT_TOKEN_NAME))
+    public fun shirt_token_address(): address {
+        armour_token_address(string::utf8(SHIRT_TOKEN_NAME))
     }
-    
+
     #[view]
     /// Returns the cloak token address
-    public fun cloak_token_address(creator: address): address {
-        armour_token_address(creator, string::utf8(CLOAK_TOKEN_NAME))
+    public fun cloak_token_address(): address {
+        armour_token_address(string::utf8(CLOAK_TOKEN_NAME))
     }
     #[view]
     /// Returns the wizards' cloak token address
-    public fun wizards_cloak_token_address(creator: address): address {
-        armour_token_address(creator, string::utf8(WIZARDS_CLOAK_TOKEN_NAME))
+    public fun wizards_cloak_token_address(): address {
+        armour_token_address(string::utf8(WIZARDS_CLOAK_TOKEN_NAME))
     }
 
     #[view]
     /// Returns the chainmail token address
-    public fun chainmail_token_address(creator: address): address {
-        armour_token_address(creator, string::utf8(CHAINMAIL_TOKEN_NAME))
+    public fun chainmail_token_address(): address {
+        armour_token_address(string::utf8(CHAINMAIL_TOKEN_NAME))
     }
     #[view]
     /// Returns the knights' armour token address
-    public fun knights_armour_token_address(creator: address): address {
-        armour_token_address(creator, string::utf8(KNIGHTS_ARMOUR_TOKEN_NAME))
+    public fun knights_armour_token_address(): address {
+        armour_token_address(string::utf8(KNIGHTS_ARMOUR_TOKEN_NAME))
     }
 
     #[view]
     /// Returns the shirt token address
-    public fun tuxedo_token_address(creator: address): address {
-        armour_token_address(creator, string::utf8(TUXEDO_TOKEN_NAME))
+    public fun tuxedo_token_address(): address {
+        armour_token_address(string::utf8(TUXEDO_TOKEN_NAME))
     }
 
     #[view]
     /// Returns the shirt token address
-    public fun golden_armour_token_address(creator: address): address {
-        armour_token_address(creator, string::utf8(GOLDEN_AMOUR_TOKEN_NAME))
+    public fun golden_armour_token_address(): address {
+        armour_token_address(string::utf8(GOLDEN_AMOUR_TOKEN_NAME))
     }
 
     //==============================================================================================
@@ -1223,23 +1221,25 @@ module character::character {
         account::create_account_for_test(admin_address);
         account::create_account_for_test(user1_address);
 
-        coin::register<AptosCoin>(admin);
+        let (resource_signer, _) = account::create_resource_account(admin, SEED);
+
+        coin::register<AptosCoin>(&resource_signer);
         coin::register<AptosCoin>(user1);
 
         let coins = coin::mint((100 as u64), &mint_cap);
         coin::deposit(user1_address, coins);
 
-        create_armour(admin);
-        mint_armour(admin, user1, string::utf8(SHIRT_TOKEN_NAME), (15 as u64));
+        create_armour(&resource_signer);
+        mint_armour(&resource_signer, user1, string::utf8(SHIRT_TOKEN_NAME), (15 as u64));
 
-        let shirt_token = object::address_to_object<ArmourToken>(shirt_token_address(admin_address));
+        let shirt_token = object::address_to_object<ArmourToken>(shirt_token_address());
         debug::print(&current_armour(user1_address, shirt_token));
 
         let expected_name: vector<u8> = b"Shirt";
 
         assert!(current_armour(user1_address, shirt_token) == string::utf8(expected_name), 0);
 
-        assert!(coin::balance<AptosCoin>(admin_address) == (15 as u64), 1); 
+        assert!(coin::balance<AptosCoin>(signer::address_of(&resource_signer)) == (15 as u64), 1); 
         assert!(coin::balance<AptosCoin>(user1_address) == (85 as u64), 2);
         
         coin::destroy_burn_cap(burn_cap);
@@ -1256,23 +1256,24 @@ module character::character {
         account::create_account_for_test(admin_address);
         account::create_account_for_test(user1_address);
 
-        coin::register<AptosCoin>(admin);
+        let (resource_signer, _) = account::create_resource_account(admin, SEED);
+
+        coin::register<AptosCoin>(&resource_signer);
         coin::register<AptosCoin>(user1);
 
         let coins = coin::mint((100 as u64), &mint_cap);
         coin::deposit(user1_address, coins);
+        create_weapon(&resource_signer);
+        mint_weapon(&resource_signer, user1, string::utf8(DAGGER_TOKEN_NAME), (15 as u64));
 
-        create_weapon(admin);
-        mint_weapon(admin, user1, string::utf8(DAGGER_TOKEN_NAME), (15 as u64));
-
-        let dagger_token = object::address_to_object<WeaponToken>(dagger_token_address(admin_address));
+        let dagger_token = object::address_to_object<WeaponToken>(dagger_token_address());
         debug::print(&current_weapon(user1_address, dagger_token));
 
         let expected_name: vector<u8> = b"Dagger";
 
         assert!(current_weapon(user1_address, dagger_token) == string::utf8(expected_name), 0);
 
-        assert!(coin::balance<AptosCoin>(admin_address) == (15 as u64), 1); 
+        assert!(coin::balance<AptosCoin>(signer::address_of(&resource_signer)) == (15 as u64), 1); 
         assert!(coin::balance<AptosCoin>(user1_address) == (85 as u64), 2);
         
         coin::destroy_burn_cap(burn_cap);
@@ -1289,22 +1290,24 @@ module character::character {
         account::create_account_for_test(admin_address);
         account::create_account_for_test(user1_address);
 
-        coin::register<AptosCoin>(admin);
+        let (resource_signer, _) = account::create_resource_account(admin, SEED);
+
+        coin::register<AptosCoin>(&resource_signer);
         coin::register<AptosCoin>(user1);
 
         let coins = coin::mint((100 as u64), &mint_cap);
         coin::deposit(user1_address, coins);
 
-        create_trinket(admin);
-        mint_trinket(admin, user1, string::utf8(CHAIN_TOKEN_NAME), (15 as u64));
+        create_trinket(&resource_signer);
+        mint_trinket(&resource_signer, user1, string::utf8(CHAIN_TOKEN_NAME), (15 as u64));
 
-        let chain_token = object::address_to_object<TrinketToken>(chain_token_address(admin_address));
+        let chain_token = object::address_to_object<TrinketToken>(chain_token_address());
 
         let expected_name: vector<u8> = b"Chain";
 
         assert!(current_trinket(user1_address, chain_token) == string::utf8(expected_name), 0);
 
-        assert!(coin::balance<AptosCoin>(admin_address) == (15 as u64), 1); 
+        assert!(coin::balance<AptosCoin>(signer::address_of(&resource_signer)) == (15 as u64), 1); 
         assert!(coin::balance<AptosCoin>(user1_address) == (85 as u64), 2);
         
         coin::destroy_burn_cap(burn_cap);
@@ -1333,26 +1336,24 @@ module character::character {
         let state = borrow_global<State>(resource);
         let resource_signer = account::create_signer_with_capability(&state.resource_signer_capability);
 
-        let expected_gender = string::utf8(b"gender");
         let expected_name = string::utf8(b"name");
-        let expected_description = string::utf8(b"description");
+        let expected_description = string_utils::format1(&b"{}'s Overmind Character", expected_name);
         let expected_uri = string::utf8(b"uri");
 
-        mint_character(&resource_signer, 
+        create_character_for_player(&resource_signer, 
         user1_address,
-        expected_gender,    
         expected_name,  
-        expected_description,   
-        expected_uri,   
         );
 
+        debug::print(&shirt_token_address());
         mint_armour(&resource_signer, user1, string::utf8(SHIRT_TOKEN_NAME), (15 as u64));
+        debug::print(&object::address_to_object<ArmourToken>(shirt_token_address()));
         mint_trinket(&resource_signer, user1, string::utf8(CHAIN_TOKEN_NAME), (15 as u64));
         mint_weapon(&resource_signer, user1, string::utf8(DAGGER_TOKEN_NAME), (15 as u64));
 
-        let shirt_token = object::address_to_object<ArmourToken>(shirt_token_address(resource));
-        let dagger_token = object::address_to_object<WeaponToken>(dagger_token_address(resource));
-        let chain_token = object::address_to_object<TrinketToken>(chain_token_address(resource));
+        let shirt_token = object::address_to_object<ArmourToken>(shirt_token_address());
+        let dagger_token = object::address_to_object<WeaponToken>(dagger_token_address());
+        let chain_token = object::address_to_object<TrinketToken>(chain_token_address());
 
         let expected_armour_name: vector<u8> = b"Shirt";
         let expected_weapon_name: vector<u8> = b"Dagger";
